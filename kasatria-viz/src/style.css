@@ -44,6 +44,14 @@ html, body {
   margin-bottom: 24px;
 }
 
+.login-logo-img {
+  width: 90px;
+  height: 90px;
+  object-fit: contain;
+  /* Invert the black logo to white so it shows on the dark background */
+  filter: invert(1) brightness(2);
+}
+
 .login-title {
   font-size: 1.75rem;
   font-weight: 600;
@@ -95,6 +103,18 @@ html, body {
   backdrop-filter: blur(8px);
   border-bottom: 1px solid rgba(255,255,255,0.08);
   z-index: 100;
+}
+
+#topbar-brand {
+  display: flex;
+  align-items: center;
+}
+
+#topbar-logo {
+  width: 36px;
+  height: 36px;
+  object-fit: contain;
+  filter: invert(1) brightness(2);
 }
 
 #user-info {
