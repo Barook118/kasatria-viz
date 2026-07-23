@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Kasatria — People Visualization</title>
+
+    <!--
+      Google Identity Services (GIS) library.
+      Loaded here so it is available before our JS runs.
+    -->
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+
+    <!-- ═══════════════════════════════════════════════
+         LOGIN SCREEN  (shown before auth)
+    ═══════════════════════════════════════════════ -->
+    <div id="login-screen">
+      <div class="login-card">
+        <div class="login-logo">
+          <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
+            <circle cx="24" cy="24" r="24" fill="#1a1a2e"/>
+            <circle cx="24" cy="18" r="7" fill="#e94560"/>
+            <path d="M10 38c0-7.732 6.268-14 14-14s14 6.268 14 14" fill="#e94560"/>
+          </svg>
+        </div>
+        <h1 class="login-title">Welcome Back</h1>
+        <p class="login-subtitle">Sign in to explore the People Visualization</p>
+
+        <!-- Google One Tap / Sign-In button rendered here by GIS -->
+        <div id="g_id_onload"
+             data-client_id=""
+             data-callback="handleGoogleCredential"
+             data-auto_prompt="false">
+        </div>
+        <div id="google-signin-btn"></div>
+
+        <p class="login-hint">Use your Google account to continue.</p>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════
+         MAIN APP  (hidden until auth succeeds)
+    ═══════════════════════════════════════════════ -->
+    <div id="app" style="display:none;">
+
+      <!-- Top bar: user info + logout -->
+      <header id="topbar">
+        <div id="user-info">
+          <img id="user-avatar" src="" alt="avatar" />
+          <span id="user-name"></span>
+        </div>
+        <button id="logout-btn">Sign out</button>
+      </header>
+
+      <!-- Loading overlay while fetching sheet data -->
+      <div id="loading-overlay">
+        <div class="spinner"></div>
+        <p>Loading data from Google Sheets…</p>
+      </div>
+
+      <!-- Three.js CSS3DRenderer mounts here -->
+      <div id="scene-container"></div>
+
+      <!-- Layout control buttons -->
+      <div id="controls">
+        <button class="ctrl-btn active" data-layout="table">TABLE</button>
+        <button class="ctrl-btn" data-layout="sphere">SPHERE</button>
+        <button class="ctrl-btn" data-layout="helix">HELIX</button>
+        <button class="ctrl-btn" data-layout="grid">GRID</button>
+      </div>
+
+      <!-- Net-worth legend -->
+      <div id="legend">
+        <span class="legend-dot red"></span><span>&lt; $100K</span>
+        <span class="legend-dot orange"></span><span>&gt; $100K</span>
+        <span class="legend-dot green"></span><span>&gt; $200K</span>
+      </div>
+
+    </div>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

@@ -1,0 +1,352 @@
+/* ═══════════════════════════════════════════════════════════
+   GLOBAL RESET & BASE
+═══════════════════════════════════════════════════════════ */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #0d0d1a;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  color: #ffffff;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   LOGIN SCREEN
+═══════════════════════════════════════════════════════════ */
+#login-screen {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(ellipse at center, #1a1a3e 0%, #0d0d1a 70%);
+  z-index: 1000;
+}
+
+.login-card {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 16px;
+  padding: 48px 40px;
+  width: 360px;
+  text-align: center;
+  backdrop-filter: blur(12px);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
+}
+
+.login-logo {
+  margin-bottom: 24px;
+}
+
+.login-title {
+  font-size: 1.75rem;
+  font-weight: 600;
+  margin-bottom: 8px;
+  letter-spacing: -0.02em;
+}
+
+.login-subtitle {
+  font-size: 0.9rem;
+  color: rgba(255,255,255,0.55);
+  margin-bottom: 32px;
+  line-height: 1.5;
+}
+
+#google-signin-btn {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 20px;
+}
+
+.login-hint {
+  font-size: 0.75rem;
+  color: rgba(255,255,255,0.3);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   APP WRAPPER
+═══════════════════════════════════════════════════════════ */
+#app {
+  width: 100%;
+  height: 100%;
+  position: relative;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   TOP BAR
+═══════════════════════════════════════════════════════════ */
+#topbar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 20px;
+  background: rgba(13, 13, 26, 0.85);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+  z-index: 100;
+}
+
+#user-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+#user-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid rgba(255,255,255,0.2);
+}
+
+#user-name {
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+#logout-btn {
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.15);
+  color: #fff;
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+#logout-btn:hover {
+  background: rgba(255,255,255,0.15);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   LOADING OVERLAY
+═══════════════════════════════════════════════════════════ */
+#loading-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: #0d0d1a;
+  z-index: 200;
+  gap: 16px;
+}
+
+#loading-overlay p {
+  color: rgba(255,255,255,0.6);
+  font-size: 0.9rem;
+}
+
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid rgba(255,255,255,0.1);
+  border-top-color: #e94560;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   THREE.JS SCENE CONTAINER
+═══════════════════════════════════════════════════════════ */
+#scene-container {
+  width: 100%;
+  height: 100%;
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  cursor: grab;
+}
+#scene-container:active {
+  cursor: grabbing;
+}
+
+/* The CSS3DRenderer injects a <div> — make sure it fills the container */
+#scene-container > div {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   PERSON TILE  (CSS3D element)
+═══════════════════════════════════════════════════════════ */
+.tile {
+  width: 100px;
+  height: 120px;
+  border-radius: 8px;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  transition: box-shadow 0.2s;
+  border: 1px solid rgba(255,255,255,0.18);
+  box-shadow: 0 2px 12px rgba(0,0,0,0.4);
+  user-select: none;
+  position: relative;
+  overflow: hidden;
+}
+
+.tile:hover {
+  box-shadow: 0 0 20px rgba(255,255,255,0.35);
+  z-index: 10;
+}
+
+/* Net-worth color classes */
+.tile.red    { background: linear-gradient(145deg, #8b1a1a, #c0392b); }
+.tile.orange { background: linear-gradient(145deg, #7d4200, #e67e22); }
+.tile.green  { background: linear-gradient(145deg, #1a5c2a, #27ae60); }
+
+/* Country badge — top-left corner */
+.tile-country {
+  position: absolute;
+  top: 5px;
+  left: 6px;
+  font-size: 0.55rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: rgba(255,255,255,0.8);
+  background: rgba(0,0,0,0.35);
+  border-radius: 3px;
+  padding: 1px 4px;
+}
+
+/* Age badge — top-right corner */
+.tile-age {
+  position: absolute;
+  top: 5px;
+  right: 6px;
+  font-size: 0.55rem;
+  font-weight: 600;
+  color: rgba(255,255,255,0.7);
+}
+
+/* Photo */
+.tile-photo {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid rgba(255,255,255,0.3);
+  margin-top: 16px;
+  flex-shrink: 0;
+  /* Graceful fallback if photo fails */
+  background: rgba(255,255,255,0.1);
+}
+
+/* Name */
+.tile-name {
+  font-size: 0.6rem;
+  font-weight: 600;
+  text-align: center;
+  color: #fff;
+  line-height: 1.2;
+  max-width: 92px;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+/* Interest */
+.tile-interest {
+  font-size: 0.55rem;
+  color: rgba(255,255,255,0.65);
+  text-align: center;
+  margin-bottom: 4px;
+}
+
+/* Net worth small label */
+.tile-worth {
+  font-size: 0.5rem;
+  color: rgba(255,255,255,0.5);
+  text-align: center;
+  margin-bottom: 2px;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   LAYOUT CONTROL BUTTONS
+═══════════════════════════════════════════════════════════ */
+#controls {
+  position: fixed;
+  bottom: 28px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 8px;
+  z-index: 100;
+}
+
+.ctrl-btn {
+  background: rgba(255,255,255,0.07);
+  border: 1px solid rgba(255,255,255,0.2);
+  color: rgba(255,255,255,0.7);
+  padding: 8px 22px;
+  border-radius: 20px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.ctrl-btn:hover {
+  background: rgba(255,255,255,0.15);
+  color: #fff;
+}
+
+.ctrl-btn.active {
+  background: #e94560;
+  border-color: #e94560;
+  color: #fff;
+  box-shadow: 0 0 16px rgba(233, 69, 96, 0.5);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   NET WORTH LEGEND
+═══════════════════════════════════════════════════════════ */
+#legend {
+  position: fixed;
+  bottom: 28px;
+  right: 24px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.72rem;
+  color: rgba(255,255,255,0.6);
+  z-index: 100;
+  background: rgba(13,13,26,0.75);
+  padding: 8px 14px;
+  border-radius: 20px;
+  border: 1px solid rgba(255,255,255,0.1);
+  backdrop-filter: blur(6px);
+}
+
+.legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+  margin-left: 6px;
+}
+.legend-dot.red    { background: #c0392b; }
+.legend-dot.orange { background: #e67e22; }
+.legend-dot.green  { background: #27ae60; }
