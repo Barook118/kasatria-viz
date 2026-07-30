@@ -201,108 +201,105 @@ export function gridLayout(count) {
 }
 
 // ---------------------------------------------------------------------------
-// PYRAMID  (square-base pyramid — 4 triangular side faces)
+// TETRAHEDRON  (regular tetrahedron — 4 equilateral triangular faces)
 // ---------------------------------------------------------------------------
 
 /**
- * Square-base pyramid matching the reference image:
- * - Apex at top, square base at bottom
- * - 4 triangular side faces, each filled with tiles in tight rows
- * - Row 1 (apex) = 1 tile, row 2 = 2 tiles, row 3 = 3 tiles... (triangular number fill)
- * - Tiles lie flat on each face surface, facing outward
+ * Regular tetrahedron: 4 vertices, 6 edges, 4 equilateral triangular faces.
+ * - 1 apex at the top
+ * - 3 base vertices forming an equilateral triangle at the bottom
+ * - All 4 faces are equilateral triangles (true tetrahedron)
  *
- * With 200 tiles / 4 faces = 50 tiles per face.
- * Triangular rows: 1+2+3+4+5+6+7+8+9+10 = 55 (we use first 10 rows, trim to 50)
+ * Tiles are distributed evenly across all 4 faces (~50 per face).
+ * Within each face, tiles fill in triangular rows: 1 tile at apex-corner,
+ * growing wider toward the opposite edge — matching the reference image.
  *
  * @param {number} count
- * @param {number} [baseSize=850]  - half-width of the square base
- * @param {number} [height=1200]   - total height apex to base
+ * @param {number} [radius=900] - circumradius (centre to vertex distance)
  * @returns {Array<{position: THREE.Vector3, rotation: THREE.Euler}>}
  */
-export function tetrahedronLayout(count, baseSize = 850, height = 1200) {
+export function tetrahedronLayout(count, radius = 900) {
   const results = [];
   const dummy   = new THREE.Object3D();
 
-  const tilesPerFace = Math.ceil(count / 4);
+  // ── 4 vertices of a regular tetrahedron ──────────────────────────────────
+  // Oriented with one vertex (apex) at the top.
+  // Using standard unit tetrahedron scaled by radius:
+  //   Apex:   (0, 1, 0)
+  //   Base 3: evenly spread 120° apart at y = -1/3, radius = 2√2/3
 
-  // ── Pyramid geometry ────────────────────────────────────────────────────
-  const apexY  =  height * 0.5;
-  const baseY  = -height * 0.5;
-  const b      = baseSize;
+  const s = radius;
+  const baseY    = -s * (1 / 3);          // y of base vertices
+  const baseR    =  s * (2 * Math.sqrt(2) / 3); // radial distance of base verts
 
-  // Apex point
-  const apex = new THREE.Vector3(0, apexY, 0);
-
-  // 4 base corners (square, going clockwise from front-left)
-  const BL = new THREE.Vector3(-b, baseY,  b); // front-left
-  const BR = new THREE.Vector3( b, baseY,  b); // front-right
-  const RR = new THREE.Vector3( b, baseY, -b); // back-right
-  const RL = new THREE.Vector3(-b, baseY, -b); // back-left
-
-  // 4 side faces: each defined by apex + left-base + right-base corner
-  const faces = [
-    { A: apex, B: BL, C: BR }, // front face  (faces toward +Z, toward viewer)
-    { A: apex, B: BR, C: RR }, // right face
-    { A: apex, B: RR, C: RL }, // back face
-    { A: apex, B: RL, C: BL }, // left face
+  const v = [
+    new THREE.Vector3(0, s, 0),                                         // v0: apex (top)
+    new THREE.Vector3(baseR, baseY, 0),                                  // v1: base front-right
+    new THREE.Vector3(-baseR * 0.5, baseY,  baseR * Math.sqrt(3) / 2),  // v2: base back-left
+    new THREE.Vector3(-baseR * 0.5, baseY, -baseR * Math.sqrt(3) / 2),  // v3: base back-right
   ];
 
-  for (let f = 0; f < 4; f++) {
-    const { A, B, C } = faces[f];
+  // ── 4 faces of the tetrahedron ────────────────────────────────────────────
+  // Each face = 3 vertex indices, wound counter-clockwise from outside
+  const faces = [
+    [0, 1, 2], // front-left face  (apex + v1 + v2)
+    [0, 2, 3], // back face        (apex + v2 + v3)
+    [0, 3, 1], // front-right face (apex + v3 + v1)
+    [1, 3, 2], // base face        (v1 + v3 + v2)
+  ];
 
-    // ── Face normal (outward) ──────────────────────────────────────────
+  // Tetrahedron centroid (geometric centre) — used to ensure normals point outward
+  const centroid = new THREE.Vector3(0, (s + 3 * baseY) / 4, 0);
+
+  const tilesPerFace = Math.ceil(count / 4);
+
+  // ── Fill each face with tiles in triangular rows ──────────────────────────
+  for (let f = 0; f < 4; f++) {
+    const [iA, iB, iC] = faces[f];
+    const A = v[iA]; // "apex" corner of this face (row origin)
+    const B = v[iB]; // base-left corner
+    const C = v[iC]; // base-right corner
+
+    // Outward-pointing normal
     const AB     = new THREE.Vector3().subVectors(B, A);
     const AC     = new THREE.Vector3().subVectors(C, A);
     const normal = new THREE.Vector3().crossVectors(AB, AC).normalize();
-    const centre = new THREE.Vector3().addVectors(A, B).add(C).divideScalar(3);
-    if (normal.dot(centre) < 0) normal.negate();
+    const faceCentre = new THREE.Vector3().addVectors(A, B).add(C).divideScalar(3);
+    // Flip if pointing inward
+    if (normal.dot(new THREE.Vector3().subVectors(faceCentre, centroid)) < 0) {
+      normal.negate();
+    }
 
-    // ── Build triangular row grid ──────────────────────────────────────
-    // We fill rows 1,2,3,... tiles wide from apex down to base.
-    // Position each tile using barycentric interpolation on the triangle.
-    //
-    // For a triangular face with apex at A, base edge B→C:
-    //   - "t" goes from 0 (apex) to 1 (base)
-    //   - within row t, tiles are spread evenly along the base direction
-    //
-    // We compute how many rows we need to fit tilesPerFace tiles.
-    // Row r (1-indexed) has r tiles → total after R rows = R*(R+1)/2
-    // We need R*(R+1)/2 >= tilesPerFace → R = ceil((-1+sqrt(1+8*N))/2)
-
-    const R = Math.ceil((-1 + Math.sqrt(1 + 8 * tilesPerFace)) / 2);
-
-    // Padding: keep tiles slightly inset from edges
-    const pad = 0.04;
+    // How many rows R needed so that 1+2+…+R >= tilesPerFace
+    // R*(R+1)/2 >= tilesPerFace  →  R = ceil((-1 + sqrt(1+8*N)) / 2)
+    const R   = Math.ceil((-1 + Math.sqrt(1 + 8 * tilesPerFace)) / 2);
+    const pad = 0.05; // inset from edges
 
     let placed = 0;
 
     for (let row = 1; row <= R && placed < tilesPerFace; row++) {
-      // t: vertical interpolation from apex (0) to base (1)
-      // row 1 = near apex, row R = near base
-      const t = pad + (row - 0.5) / R * (1 - 2 * pad);
-
-      // Number of tiles in this row
       const tilesInRow = row;
 
+      // t: 0 = near corner A (apex of face), 1 = near base edge BC
+      const t = pad + ((row - 0.5) / R) * (1 - 2 * pad);
+
       for (let col = 0; col < tilesInRow && placed < tilesPerFace; col++) {
-        // s: horizontal interpolation across the row (0 = left edge, 1 = right edge)
+        // s: 0 = toward B, 1 = toward C along the row
         const s = tilesInRow === 1
           ? 0.5
-          : pad + col / (tilesInRow - 1) * (1 - 2 * pad);
+          : pad + (col / (tilesInRow - 1)) * (1 - 2 * pad);
 
-        // Convert (t, s) to barycentric coords on triangle A, B, C:
-        //   Point = A*(1-t) + [B*(1-s) + C*s]*t
-        //         = A*(1-t) + B*t*(1-s) + C*t*s
-        const u = 1 - t;       // weight of apex A
-        const v = t * (1 - s); // weight of base-left B
-        const w = t * s;       // weight of base-right C
+        // Barycentric:  P = A*(1-t) + B*t*(1-s) + C*t*s
+        const wA = 1 - t;
+        const wB = t * (1 - s);
+        const wC = t * s;
 
         const pos = new THREE.Vector3()
-          .addScaledVector(A, u)
-          .addScaledVector(B, v)
-          .addScaledVector(C, w);
+          .addScaledVector(A, wA)
+          .addScaledVector(B, wB)
+          .addScaledVector(C, wC);
 
-        // Orient tile: face outward along face normal
+        // Tile faces outward from the face surface
         dummy.position.copy(pos);
         dummy.lookAt(pos.clone().add(normal));
 
@@ -316,12 +313,13 @@ export function tetrahedronLayout(count, baseSize = 850, height = 1200) {
     }
   }
 
-  // Safety padding
+  // Safety: pad to count if rounding left gaps
   while (results.length < count) {
     results.push(results[results.length - 1]);
   }
 
   return results;
 }
+
 
 
