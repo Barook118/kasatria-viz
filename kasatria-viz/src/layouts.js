@@ -303,6 +303,9 @@ export function tetrahedronLayout(count, radius = 900) {
           .addScaledVector(B, wB)
           .addScaledVector(C, wC);
 
+        // Pull entire face outward slightly to prevent face collisions
+        pos.addScaledVector(normal, 30); // +30px outward
+
         // Tile faces outward from the face surface
         dummy.position.copy(pos);
         dummy.lookAt(pos.clone().add(normal));
