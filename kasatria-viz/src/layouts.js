@@ -270,17 +270,17 @@ export function tetrahedronLayout(count, radius = 900) {
       normal.negate();
     }
 
-    // Use fixed 10 rows. Each row r has r slots but we fill proportionally
-    // so all 50 tiles are spread across all 10 rows with no leftover gap.
-    const R   = 10;
+    // Use fixed 9 rows. Each row r has r slots but we fill proportionally
+    // so all 50 tiles are spread across all 9 rows with no leftover gap.
+    const R   = 9;
     const pad = 0.05;
 
     let placed = 0;
 
     for (let row = 1; row <= R && placed < tilesPerFace; row++) {
       // How many tiles in this row — scale proportionally so all rows fill
-      // row 1 gets 1 slot, row 10 gets 10 slots out of 55 total slots
-      // We scale: tilesInRow = round(row / 55 * tilesPerFace)
+      // row 1 gets 1 slot, row 9 gets 9 slots out of 45 total slots
+      // We scale: tilesInRow = round(row / 45 * tilesPerFace)
       const tilesInRow = Math.max(1, Math.round((row / (R * (R + 1) / 2)) * tilesPerFace));
 
       // t: 0 = near corner A (apex of face), 1 = near base edge BC
