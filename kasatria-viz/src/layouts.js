@@ -205,118 +205,123 @@ export function gridLayout(count) {
 // ---------------------------------------------------------------------------
 
 /**
- * Square-base pyramid: 1 apex at the top, 4 base corners forming a square.
- * Tiles are distributed across the 4 triangular SIDE faces only
- * (50 tiles per face), each tile facing outward from the pyramid surface.
+ * Square-base pyramid matching the reference image:
+ * - Apex at top, square base at bottom
+ * - 4 triangular side faces, each filled with tiles in tight rows
+ * - Row 1 (apex) = 1 tile, row 2 = 2 tiles, row 3 = 3 tiles... (triangular number fill)
+ * - Tiles lie flat on each face surface, facing outward
  *
- * Shape matches the reference image: tall apex, wide square base.
+ * With 200 tiles / 4 faces = 50 tiles per face.
+ * Triangular rows: 1+2+3+4+5+6+7+8+9+10 = 55 (we use first 10 rows, trim to 50)
  *
  * @param {number} count
- * @param {number} [baseSize=900]  - half-width of the square base
- * @param {number} [height=1100]   - height from base to apex
+ * @param {number} [baseSize=850]  - half-width of the square base
+ * @param {number} [height=1200]   - total height apex to base
  * @returns {Array<{position: THREE.Vector3, rotation: THREE.Euler}>}
  */
-export function tetrahedronLayout(count, baseSize = 900, height = 1100) {
+export function tetrahedronLayout(count, baseSize = 850, height = 1200) {
   const results = [];
   const dummy   = new THREE.Object3D();
 
-  // ── Pyramid vertices ─────────────────────────────────────────────────────
-  const apex = new THREE.Vector3(0,  height * 0.5,  0);  // top point
-  const baseY = -height * 0.5;                             // base Y level
-  const b = baseSize;
-
-  // 4 base corners (square), ordered: front-left, front-right, back-right, back-left
-  const baseCorners = [
-    new THREE.Vector3(-b, baseY,  b),  // front-left
-    new THREE.Vector3( b, baseY,  b),  // front-right
-    new THREE.Vector3( b, baseY, -b),  // back-right
-    new THREE.Vector3(-b, baseY, -b),  // back-left
-  ];
-
-  // ── 4 triangular side faces ───────────────────────────────────────────────
-  // Each face = apex + two adjacent base corners
-  const faces = [
-    [apex, baseCorners[0], baseCorners[1]],  // front face
-    [apex, baseCorners[1], baseCorners[2]],  // right face
-    [apex, baseCorners[2], baseCorners[3]],  // back face
-    [apex, baseCorners[3], baseCorners[0]],  // left face
-  ];
-
   const tilesPerFace = Math.ceil(count / 4);
 
-  for (let f = 0; f < 4; f++) {
-    const [A, B, C] = faces[f];
+  // ── Pyramid geometry ────────────────────────────────────────────────────
+  const apexY  =  height * 0.5;
+  const baseY  = -height * 0.5;
+  const b      = baseSize;
 
-    // ── Outward normal ──────────────────────────────────────────────────
+  // Apex point
+  const apex = new THREE.Vector3(0, apexY, 0);
+
+  // 4 base corners (square, going clockwise from front-left)
+  const BL = new THREE.Vector3(-b, baseY,  b); // front-left
+  const BR = new THREE.Vector3( b, baseY,  b); // front-right
+  const RR = new THREE.Vector3( b, baseY, -b); // back-right
+  const RL = new THREE.Vector3(-b, baseY, -b); // back-left
+
+  // 4 side faces: each defined by apex + left-base + right-base corner
+  const faces = [
+    { A: apex, B: BL, C: BR }, // front face  (faces toward +Z, toward viewer)
+    { A: apex, B: BR, C: RR }, // right face
+    { A: apex, B: RR, C: RL }, // back face
+    { A: apex, B: RL, C: BL }, // left face
+  ];
+
+  for (let f = 0; f < 4; f++) {
+    const { A, B, C } = faces[f];
+
+    // ── Face normal (outward) ──────────────────────────────────────────
     const AB     = new THREE.Vector3().subVectors(B, A);
     const AC     = new THREE.Vector3().subVectors(C, A);
     const normal = new THREE.Vector3().crossVectors(AB, AC).normalize();
+    const centre = new THREE.Vector3().addVectors(A, B).add(C).divideScalar(3);
+    if (normal.dot(centre) < 0) normal.negate();
 
-    // Face centre — make sure normal points away from the pyramid centre (origin)
-    const faceCentre = new THREE.Vector3()
-      .addVectors(A, B).add(C).divideScalar(3);
-    if (normal.dot(faceCentre) < 0) normal.negate();
+    // ── Build triangular row grid ──────────────────────────────────────
+    // We fill rows 1,2,3,... tiles wide from apex down to base.
+    // Position each tile using barycentric interpolation on the triangle.
+    //
+    // For a triangular face with apex at A, base edge B→C:
+    //   - "t" goes from 0 (apex) to 1 (base)
+    //   - within row t, tiles are spread evenly along the base direction
+    //
+    // We compute how many rows we need to fit tilesPerFace tiles.
+    // Row r (1-indexed) has r tiles → total after R rows = R*(R+1)/2
+    // We need R*(R+1)/2 >= tilesPerFace → R = ceil((-1+sqrt(1+8*N))/2)
 
-    // ── Sample a triangular grid on this face using barycentric coords ──
-    // Use a row-based triangular grid: row 0 = 1 tile (near apex),
-    // row N = N+1 tiles (near base). This naturally respects the triangle shape.
-    const rows   = Math.ceil(Math.sqrt(2 * tilesPerFace));
-    const points = [];
+    const R = Math.ceil((-1 + Math.sqrt(1 + 8 * tilesPerFace)) / 2);
 
-    for (let row = 0; row < rows && points.length < tilesPerFace; row++) {
-      // Number of sample points in this row
-      const cols = row + 1;
-      for (let col = 0; col < cols && points.length < tilesPerFace; col++) {
-        // Barycentric coordinates (u=apex weight, v+w=base edge weights)
-        // Map so row 0 = near apex, row (rows-1) = near base
-        const t = rows === 1 ? 0.5 : row / (rows - 1);
+    // Padding: keep tiles slightly inset from edges
+    const pad = 0.04;
 
-        // u: weight toward apex (decreases as we go down)
-        const u = 1 - t * 0.85; // keep slightly away from exact apex
+    let placed = 0;
 
-        // Spread along the base edge
-        const baseT = cols === 1 ? 0.5 : col / (cols - 1);
-        const v = (1 - u) * (1 - baseT * 0.85);
-        const w = 1 - u - v;
+    for (let row = 1; row <= R && placed < tilesPerFace; row++) {
+      // t: vertical interpolation from apex (0) to base (1)
+      // row 1 = near apex, row R = near base
+      const t = pad + (row - 0.5) / R * (1 - 2 * pad);
 
-        // Slightly inset from edges
-        const inset = 0.08;
-        const uu = u * (1 - inset * 3) + inset;
-        const vv = v * (1 - inset * 3) + inset;
-        const ww = Math.max(0, 1 - uu - vv);
+      // Number of tiles in this row
+      const tilesInRow = row;
 
-        const point = new THREE.Vector3()
-          .addScaledVector(A, uu)
-          .addScaledVector(B, vv)
-          .addScaledVector(C, ww);
+      for (let col = 0; col < tilesInRow && placed < tilesPerFace; col++) {
+        // s: horizontal interpolation across the row (0 = left edge, 1 = right edge)
+        const s = tilesInRow === 1
+          ? 0.5
+          : pad + col / (tilesInRow - 1) * (1 - 2 * pad);
 
-        points.push(point);
+        // Convert (t, s) to barycentric coords on triangle A, B, C:
+        //   Point = A*(1-t) + [B*(1-s) + C*s]*t
+        //         = A*(1-t) + B*t*(1-s) + C*t*s
+        const u = 1 - t;       // weight of apex A
+        const v = t * (1 - s); // weight of base-left B
+        const w = t * s;       // weight of base-right C
+
+        const pos = new THREE.Vector3()
+          .addScaledVector(A, u)
+          .addScaledVector(B, v)
+          .addScaledVector(C, w);
+
+        // Orient tile: face outward along face normal
+        dummy.position.copy(pos);
+        dummy.lookAt(pos.clone().add(normal));
+
+        results.push({
+          position: pos.clone(),
+          rotation: dummy.rotation.clone(),
+        });
+
+        placed++;
       }
-    }
-
-    // ── Place tiles ──────────────────────────────────────────────────────
-    for (let p = 0; p < points.length; p++) {
-      const globalIndex = f * tilesPerFace + p;
-      if (globalIndex >= count) break;
-
-      const pos = points[p];
-
-      // Orient tile to face outward from the pyramid surface
-      dummy.position.copy(pos);
-      dummy.lookAt(pos.clone().add(normal));
-
-      results.push({
-        position: pos.clone(),
-        rotation: dummy.rotation.clone(),
-      });
     }
   }
 
-  // Safety padding if rounding left gaps
+  // Safety padding
   while (results.length < count) {
     results.push(results[results.length - 1]);
   }
 
   return results;
 }
+
 
