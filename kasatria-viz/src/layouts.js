@@ -201,83 +201,89 @@ export function gridLayout(count) {
 }
 
 // ---------------------------------------------------------------------------
-// TETRAHEDRON  (4-face pyramid)
+// PYRAMID  (square-base pyramid — 4 triangular side faces)
 // ---------------------------------------------------------------------------
 
 /**
- * Distributes tiles evenly across the 4 triangular faces of a regular
- * tetrahedron (a 4-face pyramid where every face is an equilateral triangle).
+ * Square-base pyramid: 1 apex at the top, 4 base corners forming a square.
+ * Tiles are distributed across the 4 triangular SIDE faces only
+ * (50 tiles per face), each tile facing outward from the pyramid surface.
  *
- * Each face gets Math.ceil(count / 4) tiles arranged in a triangular grid.
- * Tiles are placed on the face surface and rotated to face outward.
+ * Shape matches the reference image: tall apex, wide square base.
  *
  * @param {number} count
- * @param {number} [radius=700] - circumradius of the tetrahedron
+ * @param {number} [baseSize=900]  - half-width of the square base
+ * @param {number} [height=1100]   - height from base to apex
  * @returns {Array<{position: THREE.Vector3, rotation: THREE.Euler}>}
  */
-export function tetrahedronLayout(count, radius = 700) {
+export function tetrahedronLayout(count, baseSize = 900, height = 1100) {
   const results = [];
   const dummy   = new THREE.Object3D();
 
-  // ── Define the 4 vertices of a regular tetrahedron ──────────────────────
-  // Placed so the base is near the bottom and apex points up.
-  const r = radius;
-  const vertices = [
-    new THREE.Vector3(0,                r,                 0),                         // apex (top)
-    new THREE.Vector3( r * 0.9428,     -r * 0.3333,        0),                         // base front-right
-    new THREE.Vector3(-r * 0.4714,     -r * 0.3333,        r * 0.8165),                // base back-left
-    new THREE.Vector3(-r * 0.4714,     -r * 0.3333,       -r * 0.8165),                // base back-right
+  // ── Pyramid vertices ─────────────────────────────────────────────────────
+  const apex = new THREE.Vector3(0,  height * 0.5,  0);  // top point
+  const baseY = -height * 0.5;                             // base Y level
+  const b = baseSize;
+
+  // 4 base corners (square), ordered: front-left, front-right, back-right, back-left
+  const baseCorners = [
+    new THREE.Vector3(-b, baseY,  b),  // front-left
+    new THREE.Vector3( b, baseY,  b),  // front-right
+    new THREE.Vector3( b, baseY, -b),  // back-right
+    new THREE.Vector3(-b, baseY, -b),  // back-left
   ];
 
-  // ── Define the 4 faces (each = 3 vertex indices) ────────────────────────
+  // ── 4 triangular side faces ───────────────────────────────────────────────
+  // Each face = apex + two adjacent base corners
   const faces = [
-    [0, 1, 2], // front-left face
-    [0, 2, 3], // back face
-    [0, 3, 1], // front-right face
-    [1, 3, 2], // bottom base
+    [apex, baseCorners[0], baseCorners[1]],  // front face
+    [apex, baseCorners[1], baseCorners[2]],  // right face
+    [apex, baseCorners[2], baseCorners[3]],  // back face
+    [apex, baseCorners[3], baseCorners[0]],  // left face
   ];
 
-  // Tiles per face (distribute as evenly as possible)
   const tilesPerFace = Math.ceil(count / 4);
 
-  // ── For each face, compute a grid of points on its surface ──────────────
   for (let f = 0; f < 4; f++) {
-    const [iA, iB, iC] = faces[f];
-    const A = vertices[iA];
-    const B = vertices[iB];
-    const C = vertices[iC];
+    const [A, B, C] = faces[f];
 
-    // Outward-facing normal of this face
+    // ── Outward normal ──────────────────────────────────────────────────
     const AB     = new THREE.Vector3().subVectors(B, A);
     const AC     = new THREE.Vector3().subVectors(C, A);
     const normal = new THREE.Vector3().crossVectors(AB, AC).normalize();
 
-    // Centre of this face
+    // Face centre — make sure normal points away from the pyramid centre (origin)
     const faceCentre = new THREE.Vector3()
-      .addVectors(A, B)
-      .add(C)
-      .divideScalar(3);
-
-    // Ensure normal points outward (away from tetrahedron centroid at origin)
+      .addVectors(A, B).add(C).divideScalar(3);
     if (normal.dot(faceCentre) < 0) normal.negate();
 
-    // Generate a triangular grid of barycentric sample points on this face.
-    // For N tiles, use a triangular number grid of side = ceil(sqrt(2N)).
-    const side   = Math.ceil(Math.sqrt(2 * tilesPerFace)) + 1;
+    // ── Sample a triangular grid on this face using barycentric coords ──
+    // Use a row-based triangular grid: row 0 = 1 tile (near apex),
+    // row N = N+1 tiles (near base). This naturally respects the triangle shape.
+    const rows   = Math.ceil(Math.sqrt(2 * tilesPerFace));
     const points = [];
 
-    for (let i = 0; i <= side; i++) {
-      for (let j = 0; j <= side - i; j++) {
-        const u = i / side;
-        const v = j / side;
-        const w = 1 - u - v;
-        if (w < 0) continue;
+    for (let row = 0; row < rows && points.length < tilesPerFace; row++) {
+      // Number of sample points in this row
+      const cols = row + 1;
+      for (let col = 0; col < cols && points.length < tilesPerFace; col++) {
+        // Barycentric coordinates (u=apex weight, v+w=base edge weights)
+        // Map so row 0 = near apex, row (rows-1) = near base
+        const t = rows === 1 ? 0.5 : row / (rows - 1);
 
-        // Barycentric → Cartesian, slightly offset inward from vertex edges
-        const scale = 0.75; // keeps tiles away from sharp edges
-        const uu = u * scale + (1 - scale) / 3;
-        const vv = v * scale + (1 - scale) / 3;
-        const ww = 1 - uu - vv;
+        // u: weight toward apex (decreases as we go down)
+        const u = 1 - t * 0.85; // keep slightly away from exact apex
+
+        // Spread along the base edge
+        const baseT = cols === 1 ? 0.5 : col / (cols - 1);
+        const v = (1 - u) * (1 - baseT * 0.85);
+        const w = 1 - u - v;
+
+        // Slightly inset from edges
+        const inset = 0.08;
+        const uu = u * (1 - inset * 3) + inset;
+        const vv = v * (1 - inset * 3) + inset;
+        const ww = Math.max(0, 1 - uu - vv);
 
         const point = new THREE.Vector3()
           .addScaledVector(A, uu)
@@ -285,19 +291,17 @@ export function tetrahedronLayout(count, radius = 700) {
           .addScaledVector(C, ww);
 
         points.push(point);
-        if (points.length >= tilesPerFace) break;
       }
-      if (points.length >= tilesPerFace) break;
     }
 
-    // Place a tile at each sample point on this face
+    // ── Place tiles ──────────────────────────────────────────────────────
     for (let p = 0; p < points.length; p++) {
       const globalIndex = f * tilesPerFace + p;
       if (globalIndex >= count) break;
 
       const pos = points[p];
 
-      // Rotate tile to face outward (align with face normal)
+      // Orient tile to face outward from the pyramid surface
       dummy.position.copy(pos);
       dummy.lookAt(pos.clone().add(normal));
 
@@ -308,10 +312,11 @@ export function tetrahedronLayout(count, radius = 700) {
     }
   }
 
-  // Safety: if rounding left us short, duplicate last entry
+  // Safety padding if rounding left gaps
   while (results.length < count) {
     results.push(results[results.length - 1]);
   }
 
   return results;
 }
+
