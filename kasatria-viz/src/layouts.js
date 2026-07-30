@@ -273,7 +273,7 @@ export function tetrahedronLayout(count, radius = 900) {
     // How many rows R needed so that 1+2+…+R >= tilesPerFace
     // R*(R+1)/2 >= tilesPerFace  →  R = ceil((-1 + sqrt(1+8*N)) / 2)
     const R   = Math.ceil((-1 + Math.sqrt(1 + 8 * tilesPerFace)) / 2);
-    const pad = 0.05; // inset from edges
+    const pad = 0.0; // no inset — tiles go right to the edges
 
     let placed = 0;
 
@@ -281,13 +281,13 @@ export function tetrahedronLayout(count, radius = 900) {
       const tilesInRow = row;
 
       // t: 0 = near corner A (apex of face), 1 = near base edge BC
-      const t = pad + ((row - 0.5) / R) * (1 - 2 * pad);
+      const t = (row - 0.5) / R;
 
       for (let col = 0; col < tilesInRow && placed < tilesPerFace; col++) {
         // s: 0 = toward B, 1 = toward C along the row
         const s = tilesInRow === 1
           ? 0.5
-          : pad + (col / (tilesInRow - 1)) * (1 - 2 * pad);
+          : col / (tilesInRow - 1);
 
         // Barycentric:  P = A*(1-t) + B*t*(1-s) + C*t*s
         const wA = 1 - t;
