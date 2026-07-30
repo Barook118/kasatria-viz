@@ -206,106 +206,107 @@ export function gridLayout(count) {
 
 /**
  * Regular tetrahedron: 4 vertices, 6 edges, 4 equilateral triangular faces.
- * - 1 apex at the top
- * - 3 base vertices forming an equilateral triangle at the bottom
- * - All 4 faces are equilateral triangles (true tetrahedron)
- *
- * Tiles are distributed evenly across all 4 faces (~50 per face).
- * Within each face, tiles fill in triangular rows: 1 tile at apex-corner,
- * growing wider toward the opposite edge — matching the reference image.
+ * Tiles fill each face in tight triangular rows, all facing outward.
+ * Tile spacing is computed from the actual face dimensions so tiles
+ * pack edge-to-edge with no blank areas.
  *
  * @param {number} count
- * @param {number} [radius=900] - circumradius (centre to vertex distance)
+ * @param {number} [radius=950] - circumradius (centre to vertex)
  * @returns {Array<{position: THREE.Vector3, rotation: THREE.Euler}>}
  */
-export function tetrahedronLayout(count, radius = 900) {
+export function tetrahedronLayout(count, radius = 950) {
   const results = [];
-  const dummy   = new THREE.Object3D();
 
-  // ── 4 vertices of a regular tetrahedron ──────────────────────────────────
-  // Oriented with one vertex (apex) at the top.
-  // Using standard unit tetrahedron scaled by radius:
-  //   Apex:   (0, 1, 0)
-  //   Base 3: evenly spread 120° apart at y = -1/3, radius = 2√2/3
-
-  const s = radius;
-  const baseY    = -s * (1 / 3);          // y of base vertices
-  const baseR    =  s * (2 * Math.sqrt(2) / 3); // radial distance of base verts
+  // ── 4 vertices of a regular tetrahedron, apex pointing up ────────────────
+  const baseY =  -radius / 3;
+  const baseR =   radius * (2 * Math.sqrt(2) / 3);
 
   const v = [
-    new THREE.Vector3(0, s, 0),                                         // v0: apex (top)
-    new THREE.Vector3(baseR, baseY, 0),                                  // v1: base front-right
-    new THREE.Vector3(-baseR * 0.5, baseY,  baseR * Math.sqrt(3) / 2),  // v2: base back-left
-    new THREE.Vector3(-baseR * 0.5, baseY, -baseR * Math.sqrt(3) / 2),  // v3: base back-right
+    new THREE.Vector3(0,      radius, 0),                                         // v0: apex
+    new THREE.Vector3( baseR, baseY,  0),                                          // v1
+    new THREE.Vector3(-baseR * 0.5, baseY,  baseR * Math.sqrt(3) / 2),            // v2
+    new THREE.Vector3(-baseR * 0.5, baseY, -baseR * Math.sqrt(3) / 2),            // v3
   ];
 
-  // ── 4 faces of the tetrahedron ────────────────────────────────────────────
-  // Each face = 3 vertex indices, wound counter-clockwise from outside
+  // Centroid at origin — used to orient normals outward
+  const centroid = new THREE.Vector3(0, (radius + 3 * baseY) / 4, 0);
+
+  // 4 faces
   const faces = [
-    [0, 1, 2], // front-left face  (apex + v1 + v2)
-    [0, 2, 3], // back face        (apex + v2 + v3)
-    [0, 3, 1], // front-right face (apex + v3 + v1)
-    [1, 3, 2], // base face        (v1 + v3 + v2)
+    [0, 1, 2],
+    [0, 2, 3],
+    [0, 3, 1],
+    [1, 3, 2],
   ];
-
-  // Tetrahedron centroid (geometric centre) — used to ensure normals point outward
-  const centroid = new THREE.Vector3(0, (s + 3 * baseY) / 4, 0);
 
   const tilesPerFace = Math.ceil(count / 4);
 
-  // ── Fill each face with tiles in triangular rows ──────────────────────────
+  // Number of rows R so that R*(R+1)/2 >= tilesPerFace
+  const R = Math.ceil((-1 + Math.sqrt(1 + 8 * tilesPerFace)) / 2);
+
   for (let f = 0; f < 4; f++) {
     const [iA, iB, iC] = faces[f];
-    const A = v[iA]; // "apex" corner of this face (row origin)
-    const B = v[iB]; // base-left corner
-    const C = v[iC]; // base-right corner
+    const A = v[iA]; // top corner of this face
+    const B = v[iB]; // bottom-left
+    const C = v[iC]; // bottom-right
 
-    // Outward-pointing normal
+    // ── Outward face normal ─────────────────────────────────────────────
     const AB     = new THREE.Vector3().subVectors(B, A);
     const AC     = new THREE.Vector3().subVectors(C, A);
     const normal = new THREE.Vector3().crossVectors(AB, AC).normalize();
-    const faceCentre = new THREE.Vector3().addVectors(A, B).add(C).divideScalar(3);
-    // Flip if pointing inward
-    if (normal.dot(new THREE.Vector3().subVectors(faceCentre, centroid)) < 0) {
+    const faceCenter = new THREE.Vector3().addVectors(A, B).add(C).divideScalar(3);
+    if (normal.dot(new THREE.Vector3().subVectors(faceCenter, centroid)) < 0) {
       normal.negate();
     }
 
-    // How many rows R needed so that 1+2+…+R >= tilesPerFace
-    // R*(R+1)/2 >= tilesPerFace  →  R = ceil((-1 + sqrt(1+8*N)) / 2)
-    const R   = Math.ceil((-1 + Math.sqrt(1 + 8 * tilesPerFace)) / 2);
-    const pad = 0.05; // inset from edges
+    // ── Face local axes (for correct tile rotation) ─────────────────────
+    // "up" in face space = direction from base-midpoint toward apex corner A
+    const baseMid = new THREE.Vector3().addVectors(B, C).multiplyScalar(0.5);
+    const faceUp  = new THREE.Vector3().subVectors(A, baseMid).normalize();
+    // "right" in face space = perpendicular to both normal and faceUp
+    const faceRight = new THREE.Vector3().crossVectors(faceUp, normal).normalize();
+
+    // Build a quaternion that rotates world-Z to face normal, world-Y to faceUp
+    const rotMatrix = new THREE.Matrix4().makeBasis(faceRight, faceUp, normal);
+    const faceQuat  = new THREE.Quaternion().setFromRotationMatrix(rotMatrix);
+    const faceEuler = new THREE.Euler().setFromQuaternion(faceQuat);
+
+    // ── Tile spacing — pack tiles to fill the face with no gaps ─────────
+    // Face edge length of this equilateral triangle
+    const edgeLen = A.distanceTo(B);
+    // Each row r (1-indexed) has r tiles. Space them so R rows fill the face.
+    // Row spacing = (face height) / R
+    // Tile width  = (row width at row r) / r = edgeLen * (r/R) / r = edgeLen/R
+    // We scale tile so its width matches edgeLen/R (no gap, no overlap)
+    // The actual spacing step in 3-D = edgeLen / R along the face-down direction
+
+    // Vertical step (apex to base) per row
+    const faceHeight  = A.distanceTo(baseMid);
+    const rowStep     = faceHeight / R;
 
     let placed = 0;
 
     for (let row = 1; row <= R && placed < tilesPerFace; row++) {
-      const tilesInRow = row;
+      // t: 0=apex corner, 1=base edge, centre of this row
+      const t = (row - 0.5) / R;
 
-      // t: 0 = near corner A (apex of face), 1 = near base edge BC
-      const t = pad + ((row - 0.5) / R) * (1 - 2 * pad);
+      const tilesInRow = row;
+      // Horizontal spread for this row (fraction of base edge)
+      const rowWidth = edgeLen * t;
 
       for (let col = 0; col < tilesInRow && placed < tilesPerFace; col++) {
-        // s: 0 = toward B, 1 = toward C along the row
-        const s = tilesInRow === 1
-          ? 0.5
-          : pad + (col / (tilesInRow - 1)) * (1 - 2 * pad);
+        // s: 0=left, 1=right within this row
+        const s = tilesInRow === 1 ? 0.5 : col / (tilesInRow - 1);
 
-        // Barycentric:  P = A*(1-t) + B*t*(1-s) + C*t*s
-        const wA = 1 - t;
-        const wB = t * (1 - s);
-        const wC = t * s;
-
+        // Barycentric: P = A*(1-t) + B*t*(1-s) + C*t*s
         const pos = new THREE.Vector3()
-          .addScaledVector(A, wA)
-          .addScaledVector(B, wB)
-          .addScaledVector(C, wC);
-
-        // Tile faces outward from the face surface
-        dummy.position.copy(pos);
-        dummy.lookAt(pos.clone().add(normal));
+          .addScaledVector(A, 1 - t)
+          .addScaledVector(B, t * (1 - s))
+          .addScaledVector(C, t * s);
 
         results.push({
           position: pos.clone(),
-          rotation: dummy.rotation.clone(),
+          rotation: faceEuler.clone(),
         });
 
         placed++;
@@ -313,13 +314,14 @@ export function tetrahedronLayout(count, radius = 900) {
     }
   }
 
-  // Safety: pad to count if rounding left gaps
+  // Safety pad
   while (results.length < count) {
     results.push(results[results.length - 1]);
   }
 
   return results;
 }
+
 
 
 
