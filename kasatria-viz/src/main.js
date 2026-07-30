@@ -187,18 +187,6 @@ function wireButtons() {
       ctrlBtns.forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
 
-      // Scale down tiles for pyramid layout so they pack tightly on the face
-      if (btn.dataset.layout === 'tetrahedron') {
-        document.querySelectorAll('.tile').forEach(t => {
-          t.style.transform = 'scale(0.55)';
-          t.style.transformOrigin = 'center center';
-        });
-      } else {
-        document.querySelectorAll('.tile').forEach(t => {
-          t.style.transform = '';
-        });
-      }
-
       // Trigger animated transition
       applyLayoutAnimated(btn.dataset.layout);
     });
