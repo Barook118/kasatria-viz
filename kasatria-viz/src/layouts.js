@@ -199,3 +199,119 @@ export function gridLayout(count) {
 
   return results;
 }
+
+// ---------------------------------------------------------------------------
+// TETRAHEDRON  (4-face pyramid)
+// ---------------------------------------------------------------------------
+
+/**
+ * Distributes tiles evenly across the 4 triangular faces of a regular
+ * tetrahedron (a 4-face pyramid where every face is an equilateral triangle).
+ *
+ * Each face gets Math.ceil(count / 4) tiles arranged in a triangular grid.
+ * Tiles are placed on the face surface and rotated to face outward.
+ *
+ * @param {number} count
+ * @param {number} [radius=700] - circumradius of the tetrahedron
+ * @returns {Array<{position: THREE.Vector3, rotation: THREE.Euler}>}
+ */
+export function tetrahedronLayout(count, radius = 700) {
+  const results = [];
+  const dummy   = new THREE.Object3D();
+
+  // ── Define the 4 vertices of a regular tetrahedron ──────────────────────
+  // Placed so the base is near the bottom and apex points up.
+  const r = radius;
+  const vertices = [
+    new THREE.Vector3(0,                r,                 0),                         // apex (top)
+    new THREE.Vector3( r * 0.9428,     -r * 0.3333,        0),                         // base front-right
+    new THREE.Vector3(-r * 0.4714,     -r * 0.3333,        r * 0.8165),                // base back-left
+    new THREE.Vector3(-r * 0.4714,     -r * 0.3333,       -r * 0.8165),                // base back-right
+  ];
+
+  // ── Define the 4 faces (each = 3 vertex indices) ────────────────────────
+  const faces = [
+    [0, 1, 2], // front-left face
+    [0, 2, 3], // back face
+    [0, 3, 1], // front-right face
+    [1, 3, 2], // bottom base
+  ];
+
+  // Tiles per face (distribute as evenly as possible)
+  const tilesPerFace = Math.ceil(count / 4);
+
+  // ── For each face, compute a grid of points on its surface ──────────────
+  for (let f = 0; f < 4; f++) {
+    const [iA, iB, iC] = faces[f];
+    const A = vertices[iA];
+    const B = vertices[iB];
+    const C = vertices[iC];
+
+    // Outward-facing normal of this face
+    const AB     = new THREE.Vector3().subVectors(B, A);
+    const AC     = new THREE.Vector3().subVectors(C, A);
+    const normal = new THREE.Vector3().crossVectors(AB, AC).normalize();
+
+    // Centre of this face
+    const faceCentre = new THREE.Vector3()
+      .addVectors(A, B)
+      .add(C)
+      .divideScalar(3);
+
+    // Ensure normal points outward (away from tetrahedron centroid at origin)
+    if (normal.dot(faceCentre) < 0) normal.negate();
+
+    // Generate a triangular grid of barycentric sample points on this face.
+    // For N tiles, use a triangular number grid of side = ceil(sqrt(2N)).
+    const side   = Math.ceil(Math.sqrt(2 * tilesPerFace)) + 1;
+    const points = [];
+
+    for (let i = 0; i <= side; i++) {
+      for (let j = 0; j <= side - i; j++) {
+        const u = i / side;
+        const v = j / side;
+        const w = 1 - u - v;
+        if (w < 0) continue;
+
+        // Barycentric → Cartesian, slightly offset inward from vertex edges
+        const scale = 0.75; // keeps tiles away from sharp edges
+        const uu = u * scale + (1 - scale) / 3;
+        const vv = v * scale + (1 - scale) / 3;
+        const ww = 1 - uu - vv;
+
+        const point = new THREE.Vector3()
+          .addScaledVector(A, uu)
+          .addScaledVector(B, vv)
+          .addScaledVector(C, ww);
+
+        points.push(point);
+        if (points.length >= tilesPerFace) break;
+      }
+      if (points.length >= tilesPerFace) break;
+    }
+
+    // Place a tile at each sample point on this face
+    for (let p = 0; p < points.length; p++) {
+      const globalIndex = f * tilesPerFace + p;
+      if (globalIndex >= count) break;
+
+      const pos = points[p];
+
+      // Rotate tile to face outward (align with face normal)
+      dummy.position.copy(pos);
+      dummy.lookAt(pos.clone().add(normal));
+
+      results.push({
+        position: pos.clone(),
+        rotation: dummy.rotation.clone(),
+      });
+    }
+  }
+
+  // Safety: if rounding left us short, duplicate last entry
+  while (results.length < count) {
+    results.push(results[results.length - 1]);
+  }
+
+  return results;
+}

@@ -20,6 +20,7 @@ import {
   sphereLayout,
   helixLayout,
   gridLayout,
+  tetrahedronLayout,
 } from './layouts.js';
 
 // ---------------------------------------------------------------------------
@@ -130,10 +131,11 @@ function initVisualization(people) {
   // Precompute all layout target arrays once (avoids recalculating on every click)
   const count = tileObjects.length;
   layoutTargets = {
-    table:  tableLayout(count),
-    sphere: sphereLayout(count),
-    helix:  helixLayout(count),
-    grid:   gridLayout(count),
+    table:       tableLayout(count),
+    sphere:      sphereLayout(count),
+    helix:       helixLayout(count),
+    grid:        gridLayout(count),
+    tetrahedron: tetrahedronLayout(count),
   };
 
   // Start with table layout (no animation — just set positions directly)
