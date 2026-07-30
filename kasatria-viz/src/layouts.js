@@ -273,7 +273,7 @@ export function tetrahedronLayout(count, radius = 900) {
     // Use fixed 9 rows. Each row r has r slots but we fill proportionally
     // so all 50 tiles are spread across all 9 rows with no leftover gap.
     const R   = 9;
-    const pad = 0.15; // Increased padding to prevent edge overlap/clipping
+    const pad = 0.05;
 
     let placed = 0;
 
@@ -284,17 +284,13 @@ export function tetrahedronLayout(count, radius = 900) {
       const tilesInRow = Math.max(1, Math.round((row / (R * (R + 1) / 2)) * tilesPerFace));
 
       // t: 0 = near corner A (apex of face), 1 = near base edge BC
-      // Apply padding to pull cards away from edges
-      const t_raw = (row - 0.5) / R;
-      const t = pad + (1 - 2 * pad) * t_raw;
+      const t = (row - 0.5) / R;
 
       for (let col = 0; col < tilesInRow && placed < tilesPerFace; col++) {
         // s: 0 = toward B, 1 = toward C along the row
-        // Apply padding to pull cards away from side edges
-        const s_raw = tilesInRow === 1
+        const s = tilesInRow === 1
           ? 0.5
           : col / (tilesInRow - 1);
-        const s = pad + (1 - 2 * pad) * s_raw;
 
         // Barycentric:  P = A*(1-t) + B*t*(1-s) + C*t*s
         const wA = 1 - t;
